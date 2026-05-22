@@ -1,0 +1,10 @@
+.venv
+diagrams
+__pycache__
+*.pyc
+.git
+.DS_Store
+.envrc
+webapp/
+agent_engine_proxy/
+*.md

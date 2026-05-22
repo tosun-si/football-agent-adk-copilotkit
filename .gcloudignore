@@ -1,0 +1,43 @@
+# Git
+.git/
+.gitignore
+
+# Python
+.venv/
+__pycache__/
+*.py[oc]
+*.egg-info/
+build/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# ADK local state
+.adk/
+
+# OS
+.DS_Store
+
+# Docker (not needed for Cloud Build source upload)
+.dockerignore
+webapp/.dockerignore
+
+# Local config
+.envrc
+.env
+.env.local
+
+# Node (webapp deps are installed inside Docker)
+webapp/node_modules/
+webapp/.next/
+
+# Docs and diagrams
+*.excalidraw
+CLAUDE.md
+GEMINI.md
+
+# Architecture diagrams
+architecture.excalidraw

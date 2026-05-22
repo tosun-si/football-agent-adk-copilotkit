@@ -1,0 +1,44 @@
+# Shared base for both ADK services — same image, same env, same credentials.
+# Only the command and port differ.
+x-adk-base: &adk-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: football-stats-adk-copilotkit:local
+  environment:
+    - GCP_PROJECT_ID=gb-poc-373711
+    - GOOGLE_CLOUD_PROJECT=gb-poc-373711
+    - LOCATION=europe-west1
+    - GOOGLE_GENAI_USE_VERTEXAI=True
+    - BIGQUERY_DATASET=qatar_fifa_world_cup
+    - BIGQUERY_TABLE=team_players_stat_raw
+    - GOOGLE_APPLICATION_CREDENTIALS=/tmp/adc.json
+  volumes:
+    - ${HOME}/.config/gcloud/application_default_credentials.json:/tmp/adc.json:ro
+
+services:
+  # Native ADK UI on port 8000 — used in phase 1 of the demo
+  adk-web:
+    <<: *adk-base
+    ports:
+      - "8000:8000"
+    command: ["web", "--host", "0.0.0.0", "--port", "8000"]
+
+  # ADK REST API on port 8080 — consumed by the Copilot Kit webapp
+  adk-agent:
+    <<: *adk-base
+    ports:
+      - "8080:8080"
+    # default CMD from Dockerfile is `api_server --host 0.0.0.0 --port 8080`
+
+  # Copilot Kit webapp on port 3000 — used in phase 2 of the demo
+  webapp:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - CLOUD_RUN_API_URL=http://adk-agent:8080
+    depends_on:
+      - adk-agent

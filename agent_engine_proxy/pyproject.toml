@@ -1,0 +1,10 @@
+[project]
+name = "agent-engine-proxy"
+version = "0.1.0"
+description = "FastAPI proxy for Vertex AI Agent Engine"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.135.1",
+    "uvicorn>=0.42.0",
+    "google-cloud-aiplatform>=1.141.0",
+]

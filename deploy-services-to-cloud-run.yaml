@@ -1,0 +1,76 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    script: |
+      docker buildx create --use
+      export REGISTRY="${LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
+      docker buildx bake -f docker-bake-agentic-apps.hcl --push
+    env:
+      - 'PROJECT_ID=${PROJECT_ID}'
+      - 'LOCATION=${LOCATION}'
+      - 'REPO_NAME=internal-images'
+
+  - name: 'ghcr.io/astral-sh/uv:python3.11-alpine'
+    script: |
+      uv pip install --system google-adk
+      adk deploy agent_engine \
+        --project "${PROJECT_ID}" \
+        --region "${LOCATION}" \
+        --display_name "football-stats-agent" \
+        --description "Football stats agent using ADK and BigQuery MCP via Cloud API Registry" \
+        football_stats_agent
+    env:
+      - 'PROJECT_ID=${PROJECT_ID}'
+      - 'LOCATION=${LOCATION}'
+
+  - name: 'gcr.io/google.com/cloudsdktool/google-cloud-cli:slim'
+    script: |
+      REGISTRY="${LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
+
+      echo "--- Retrieving latest Agent Engine ID ---"
+      ENGINE_ID=$(curl -s \
+        -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+        "https://${LOCATION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${LOCATION}/reasoningEngines?filter=display_name=%22football-stats-agent%22&pageSize=100" \
+        | grep 'reasoningEngines/' | head -1 | grep -o 'reasoningEngines/[0-9]*' | cut -d'/' -f2)
+      echo "--- Using Agent Engine ID: ${ENGINE_ID} ---"
+
+      echo "--- Deploying ADK Agent API ---"
+      gcloud run deploy football-stats-api \
+        --image=${REGISTRY}/football-stats-api:latest \
+        --region=${LOCATION} \
+        --platform=managed \
+        --allow-unauthenticated \
+        --port=8080 \
+        --set-env-vars=GCP_PROJECT_ID=${PROJECT_ID} \
+        --set-env-vars=LOCATION=${LOCATION} \
+        --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True \
+        --set-env-vars=BIGQUERY_DATASET=qatar_fifa_world_cup \
+        --set-env-vars=BIGQUERY_TABLE=team_players_stat_raw \
+        --set-env-vars=PYTHONUNBUFFERED=1
+
+      echo "--- Deploying Agent Engine Proxy ---"
+      gcloud run deploy agent-engine-proxy \
+        --image=${REGISTRY}/agent-engine-proxy:latest \
+        --region=${LOCATION} \
+        --platform=managed \
+        --allow-unauthenticated \
+        --port=8080 \
+        --set-env-vars=GCP_PROJECT_ID=${PROJECT_ID} \
+        --set-env-vars=LOCATION=${LOCATION} \
+        --set-env-vars=ENGINE_ID=${ENGINE_ID}
+
+      echo "--- Deploying Webapp ---"
+      ADK_API_URL=$(gcloud run services describe football-stats-api --region=${LOCATION} --format='value(status.url)')
+      PROXY_URL=$(gcloud run services describe agent-engine-proxy --region=${LOCATION} --format='value(status.url)')
+
+      gcloud run deploy football-stats-webapp \
+        --image=${REGISTRY}/football-stats-webapp:latest \
+        --region=${LOCATION} \
+        --platform=managed \
+        --allow-unauthenticated \
+        --port=3000 \
+        --set-env-vars=CLOUD_RUN_API_URL=${ADK_API_URL} \
+        --set-env-vars=AGENT_ENGINE_PROXY_URL=${PROXY_URL}
+    env:
+      - 'PROJECT_ID=${PROJECT_ID}'
+      - 'LOCATION=${LOCATION}'
+      - 'REPO_NAME=internal-images'

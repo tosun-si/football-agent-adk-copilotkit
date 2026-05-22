@@ -1,0 +1,3 @@
+name: football_stats_agent
+runtime: python311
+entry_point: football_stats_agent.agent:root_agent

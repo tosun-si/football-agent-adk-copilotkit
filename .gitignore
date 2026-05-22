@@ -1,0 +1,23 @@
+# Python-generated files
+.DS_Store
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.adk
+.idea
+$.iml
+*.iml
+
+# Virtual environments
+.venv
+
+# Node / Frontend
+node_modules/
+.next/
+.env.local
+
+# Generated slides (source of truth is generate_slides.py)
+slides/*.pptx
