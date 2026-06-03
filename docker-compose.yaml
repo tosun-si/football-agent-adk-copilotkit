@@ -1,17 +1,20 @@
 # Shared base for both ADK services — same image, same env, same credentials.
 # Only the command and port differ.
+#
+# All ${VAR} substitutions are resolved by Docker Compose from the shell env
+# (loaded by direnv from .envrc). Run `direnv allow` once if values are empty.
 x-adk-base: &adk-base
   build:
     context: .
     dockerfile: Dockerfile
   image: football-stats-adk-copilotkit:local
   environment:
-    - GCP_PROJECT_ID=gb-poc-373711
-    - GOOGLE_CLOUD_PROJECT=gb-poc-373711
-    - LOCATION=europe-west1
-    - GOOGLE_GENAI_USE_VERTEXAI=True
-    - BIGQUERY_DATASET=qatar_fifa_world_cup
-    - BIGQUERY_TABLE=team_players_stat_raw
+    - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+    - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+    - LOCATION=${LOCATION}
+    - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI}
+    - BIGQUERY_DATASET=${BIGQUERY_DATASET}
+    - BIGQUERY_TABLE=${BIGQUERY_TABLE}
     - GOOGLE_APPLICATION_CREDENTIALS=/tmp/adc.json
   volumes:
     - ${HOME}/.config/gcloud/application_default_credentials.json:/tmp/adc.json:ro

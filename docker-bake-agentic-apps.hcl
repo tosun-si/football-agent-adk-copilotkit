@@ -18,7 +18,7 @@ variable "REGISTRY" {
 # football-agent-adk repo when pushing to the same Artifact Registry.
 
 group "default" {
-  targets = ["adk-agent", "webapp"]
+  targets = ["adk-agent", "agent-engine-proxy", "webapp"]
 }
 
 target "adk-agent" {
@@ -27,6 +27,14 @@ target "adk-agent" {
   tags = ["${REGISTRY}/football-stats-api-copilotkit:latest"]
   cache-from = ["type=registry,ref=${REGISTRY}/football-stats-api-copilotkit:cache"]
   cache-to = ["type=registry,ref=${REGISTRY}/football-stats-api-copilotkit:cache,mode=max"]
+}
+
+target "agent-engine-proxy" {
+  context    = "./agent_engine_proxy"
+  dockerfile = "Dockerfile"
+  tags = ["${REGISTRY}/agent-engine-proxy-copilotkit:latest"]
+  cache-from = ["type=registry,ref=${REGISTRY}/agent-engine-proxy-copilotkit:cache"]
+  cache-to = ["type=registry,ref=${REGISTRY}/agent-engine-proxy-copilotkit:cache,mode=max"]
 }
 
 target "webapp" {

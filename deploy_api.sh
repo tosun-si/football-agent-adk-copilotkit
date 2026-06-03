@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Configuration
-SERVICE_NAME="football-stats-api"
+SERVICE_NAME="football-stats-api-copilotkit"
 REGION="europe-west1"
 PROJECT_ID="gb-poc-373711"
 REGISTRY="europe-west1-docker.pkg.dev/${PROJECT_ID}/internal-images"

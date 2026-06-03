@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,8 +19,15 @@ app.add_middleware(
 )
 
 LOCATION = os.environ.get("LOCATION", "europe-west1")
-PROJECT_NUMBER = os.environ.get("PROJECT_NUMBER", "975119474255")
-ENGINE_ID = os.environ.get("ENGINE_ID", "8813658819973349376")
+try:
+    PROJECT_NUMBER = os.environ["PROJECT_NUMBER"]
+    ENGINE_ID = os.environ["ENGINE_ID"]
+except KeyError as exc:
+    raise RuntimeError(
+        f"{exc.args[0]} env var is required. PROJECT_NUMBER is the numeric "
+        "GCP project number; ENGINE_ID is the Vertex AI Agent Engine "
+        "resource id (last segment of projects/.../reasoningEngines/<id>)."
+    ) from exc
 RESOURCE_NAME = (
     f"projects/{PROJECT_NUMBER}/locations/{LOCATION}/reasoningEngines/{ENGINE_ID}"
 )
@@ -52,15 +58,26 @@ def _create_session() -> str:
     return response.output.get("id")
 
 
-def _extract_text(event_data: bytes) -> Optional[str]:
+def _extract_text(event_data: bytes) -> str:
+    """Concatenate every textual `parts[*].text` from a single event."""
     data = json.loads(event_data.decode("utf-8"))
     parts = data.get("content", {}).get("parts", [])
-    texts = [part["text"] for part in parts if isinstance(part, dict) and part.get("text")]
-    return texts[-1] if texts else None
+    return "".join(
+        part["text"]
+        for part in parts
+        if isinstance(part, dict) and part.get("text")
+    )
 
 
 def _stream_query(message: str, session_id: str) -> str:
-    """Stream a query to the Agent Engine and return the final text response."""
+    """Stream a query to the Agent Engine and return the full text response.
+
+    A single agent turn can emit multiple text parts (natural-language
+    answer, fenced chart block, etc.) across one or more events. We
+    concatenate every text we see so the frontend gets the complete
+    response (notably the ```chart``` block that the Copilot Kit
+    markdown renderer expects).
+    """
     response_stream = client.stream_query_reasoning_engine(
         request=aiplatform_v1beta1.types.StreamQueryReasoningEngineRequest(
             name=RESOURCE_NAME,
@@ -74,16 +91,14 @@ def _stream_query(message: str, session_id: str) -> str:
         timeout=120,
     )
 
-    texts = []
+    chunks = []
     for event in response_stream:
         if event.data:
-            text = _extract_text(event.data)
-            if text:
-                texts.append(text)
+            chunk = _extract_text(event.data)
+            if chunk:
+                chunks.append(chunk)
 
-    # The stream emits multiple events (function_call, function_response, text).
-    # The last text is always the agent's final, formatted answer to the user.
-    return texts[-1] if texts else ""
+    return "".join(chunks)
 
 
 @app.post("/query", response_model=QueryResponse)

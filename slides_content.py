@@ -99,13 +99,13 @@ SLIDES = [
         "bullets": [
             "Model Context Protocol — standard ouvert (Anthropic)",
             "Découplage agent ↔ data source",
-            "BigQuery expose un serveur MCP natif via Cloud API Registry",
+            "BigQuery expose un serveur MCP natif via Agent Registry",
             "Zéro infra à maintenir côté MCP",
             "Marche aussi avec Postgres, MySQL, GitHub, Slack…",
         ],
         "notes": (
             "MCP c'est le USB-C des agents. BigQuery expose un serveur MCP managé via "
-            "API Registry, donc zéro infra à maintenir. Et le pattern marche au-delà de "
+            "Agent Registry, donc zéro infra à maintenir. Et le pattern marche au-delà de "
             "BigQuery — c'est un standard, pas du Google-only."
         ),
     },
@@ -115,14 +115,15 @@ SLIDES = [
         "language": "python",
         "code": (
             "from google.adk.agents import LlmAgent\n"
-            "from google.adk.integrations.api_registry import ApiRegistry\n"
+            "from google.adk.integrations.agent_registry import AgentRegistry\n"
             "\n"
             "def create_agent():\n"
-            "    registry = ApiRegistry(PROJECT_ID, location=\"global\",\n"
-            "                           header_provider=get_header)\n"
+            "    registry = AgentRegistry(project_id=PROJECT_ID,\n"
+            "                             location=\"global\",\n"
+            "                             header_provider=get_header)\n"
             "    mcp_server = f\"projects/{PROJECT_ID}/locations/global/\"\\\n"
             "                 f\"mcpServers/google-bigquery.googleapis.com-mcp\"\n"
-            "    toolset = registry.get_toolset(mcp_server)\n"
+            "    toolset = registry.get_mcp_toolset(mcp_server)\n"
             "\n"
             "    return LlmAgent(\n"
             "        model=\"gemini-2.5-flash\",\n"
@@ -284,9 +285,9 @@ SLIDES = [
             "\n"
             "  - name: 'google-cloud-cli:slim'\n"
             "    script: |\n"
-            "      gcloud run deploy football-stats-api ...\n"
-            "      gcloud run deploy agent-engine-proxy ...\n"
-            "      gcloud run deploy football-stats-webapp ..."
+            "      gcloud run deploy football-stats-api-copilotkit ...\n"
+            "      gcloud run deploy agent-engine-proxy-copilotkit ...\n"
+            "      gcloud run deploy football-stats-webapp-copilotkit ..."
         ),
         "notes": (
             "Bake centralise les builds (HCL). Cache registry mode=max = rebuilds "

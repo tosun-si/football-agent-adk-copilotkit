@@ -39,17 +39,37 @@ This repository is a fork of [`football-agent-adk`](../football-agent-adk) that 
 
 ## Diff vs. upstream
 
-Only three things are different from [`football-agent-adk`](../football-agent-adk):
+Differences from [`football-agent-adk`](../football-agent-adk):
 
 1. **`football_stats_agent/agent.py`** — `SYSTEM_INSTRUCTION` extended with a "Visualization Output" section telling the agent to emit a JSON chart spec in a fenced ```chart``` block when the question implies a visualization.
-2. **`webapp/`** — completely rewritten:
+2. **MCP discovery** — migrated from the deprecated `ApiRegistry` (Cloud API Registry) to `AgentRegistry` (Google Cloud Agent Registry). The client class changes (`get_toolset` → `get_mcp_toolset`) AND the resource names changed: Agent Registry assigns opaque UUIDs to MCP servers, so the agent now looks them up by `displayName` (`bigquery.googleapis.com`) instead of hardcoding the resource path. See `_resolve_mcp_server_name()` in `agent.py`. See `CLAUDE.md` for the rationale.
+3. **`webapp/`** — completely rewritten:
    - `@copilotkit/react-ui` for the chat UI (`<CopilotChat>`)
-   - `app/api/copilotkit/route.ts` — `CopilotRuntime` + custom `CopilotServiceAdapter` proxying to the ADK Cloud Run API
+   - `app/api/copilotkit/route.ts` — `CopilotRuntime` + a `BuiltInAgent` with a custom factory yielding AG-UI events, proxying to the ADK Cloud Run API
    - `components/DynamicChart.tsx` — Recharts component (bar / line / pie)
-   - `components/CopilotMarkdown.tsx` — custom markdown renderer that detects ```chart``` blocks
-3. **Infra trim** — `agent-engine-proxy` removed from `docker-compose.yaml` and `docker-bake-agentic-apps.hcl`. Only the ADK agent + the webapp are built and run. Image names are suffixed `-copilotkit` to avoid clashing with the upstream repo.
+   - `components/CopilotMarkdown.tsx` — chart-aware markdown renderer that detects ```chart``` blocks
+4. **Python deps** — `google-adk[agent-identity, mcp, a2a]>=2.1.0` and `google-cloud-aiplatform>=1.154.0`. The `a2a` extra is required transitively for `AgentRegistry`.
+5. **Agent Engine deploy** — both `deploy_agent_engine.sh` and the Cloud Build pipeline (`deploy-services-to-cloud-run.yaml`) now regenerate `football_stats_agent/requirements.txt` from `pyproject.toml` via `uv export` before calling `adk deploy`. Without this, `adk deploy` strips the ADK extras and the deployed container fails to start with `ImportError: Missing required dependencies for Agent Identity Auth Manager`. The generated requirements.txt is gitignored — single source of truth stays `pyproject.toml`.
+6. **Infra trim** — `agent-engine-proxy` removed from `docker-compose.yaml` and `docker-bake-agentic-apps.hcl`. Only the ADK agent + the webapp are built and run. Image names are suffixed `-copilotkit` to avoid clashing with the upstream repo.
 
-The rest (Dockerfile, agent_config.yaml, raw_data, .envrc, deploy scripts) is unchanged.
+The rest (Dockerfile, agent_config.yaml, raw_data, .envrc) is unchanged from the upstream repo.
+
+### Required IAM roles
+
+Both the invoking principal (user / compute SA) and — if you deploy to Agent Engine — the Vertex AI Reasoning Engine SA (`service-{PROJECT_NUMBER}@gcp-sa-aiplatform-re.iam.gserviceaccount.com`) need these roles:
+
+| Role | Why |
+|------|-----|
+| `roles/agentregistry.viewer` | Discover MCP servers in Agent Registry |
+| `roles/mcp.toolUser` | Call MCP tools |
+| `roles/aiplatform.user` | Vertex AI / Gemini calls |
+| `roles/bigquery.dataViewer` | Read the underlying table |
+| `roles/bigquery.jobUser` | Run BigQuery query jobs |
+| `roles/storage.objectAdmin` | Staging bucket — only needed when deploying to Agent Engine |
+
+The `agentregistry.googleapis.com` API must be enabled in the project (`gcloud services enable agentregistry.googleapis.com`).
+
+The legacy `roles/cloudapiregistry.viewer` does NOT grant access to Agent Registry — it's a deprecated role for the old Cloud API Registry. Drop it once migrated.
 
 ## Run locally
 
@@ -109,7 +129,91 @@ docker buildx bake
 docker compose up
 ```
 
-Two services: `adk-agent` (`:8080`) + `webapp` (`:3000`). Both wired together.
+Three services: `adk-web` (`:8000`) + `adk-agent` (`:8080`) + `webapp` (`:3000`).
+
+## Local URLs (demo cheatsheet)
+
+Everything below is available once `docker compose up` is running. Keep this list one tab away during a live demo.
+
+| What | URL | Purpose |
+|------|-----|---------|
+| **Native ADK UI** | http://localhost:8000 | Out-of-the-box ADK chat — Phase 1 of the talk demo |
+| **Copilot Kit webapp** | http://localhost:3000 | Custom UI + Recharts visualizations — Phase 2 |
+| **ADK API — Swagger UI** | http://localhost:8080/docs | Interactive API explorer for the REST endpoints |
+| **ADK API — `/run` endpoint** | http://localhost:8080/run | Raw POST endpoint consumed by the webapp |
+| **ADK API — sessions root** | http://localhost:8080/apps/football_stats_agent/users/{userId}/sessions/{sessionId} | Session bootstrap before any `/run` call |
+| **Copilot Kit runtime probe** | `POST http://localhost:3000/api/copilotkit` with `{"method":"info"}` | Verify the BuiltInAgent is registered (returns `agents.default`) |
+
+### Optional — Agent Engine path (if you also run the proxy)
+
+The proxy is NOT in `docker compose` (we trimmed it to keep the demo focused), but you can spin it up manually to test the Vertex AI Agent Engine path locally:
+
+```bash
+cd agent_engine_proxy
+uv run uvicorn main:app --port 8081
+# ENGINE_ID / PROJECT_NUMBER / LOCATION come from .envrc via direnv
+```
+
+| What | URL | Purpose |
+|------|-----|---------|
+| **Proxy `/health`** | http://localhost:8081/health | Liveness check |
+| **Proxy `/query`** | `POST http://localhost:8081/query` with `{"message": "..."}` | Wraps `async_create_session` + `async_stream_query` on Agent Engine |
+
+### Cloud / production URLs (used in Phases 4 and 5 of the demo)
+
+All Cloud Run services and the Agent Engine display name are suffixed `-copilotkit` to avoid clashing with the upstream `football-agent-adk` deployments in the same GCP project.
+
+| What | URL |
+|------|-----|
+| **Cloud Run webapp** (prod) | `https://football-stats-webapp-copilotkit-…run.app` (resolve with `gcloud run services describe football-stats-webapp-copilotkit --region=europe-west1 --format='value(status.url)'`) |
+| **Cloud Run ADK API** (prod) | `https://football-stats-api-copilotkit-…run.app` (`gcloud run services describe football-stats-api-copilotkit --region=europe-west1 --format='value(status.url)'`) |
+| **Cloud Run Agent Engine Proxy** (prod) | `https://agent-engine-proxy-copilotkit-…run.app` (`gcloud run services describe agent-engine-proxy-copilotkit --region=europe-west1 --format='value(status.url)'`) |
+| **Vertex AI Agent Engine list** | https://console.cloud.google.com/vertex-ai/agents/agent-engines?project=gb-poc-373711 (look for `football-stats-agent-copilotkit`, then click into its Playground) |
+| **Agent Registry MCP servers** in the GCP console | https://console.cloud.google.com/agent-registry/mcp-servers?project=gb-poc-373711 |
+
+## CI/CD with Cloud Build
+
+`deploy-services-to-cloud-run.yaml` is the end-to-end pipeline that builds the images, deploys the agent to Vertex AI Agent Engine, and rolls out the three Cloud Run services in one shot.
+
+### Run the pipeline
+
+```bash
+gcloud builds submit \
+  --config deploy-services-to-cloud-run.yaml \
+  --project gb-poc-373711 \
+  --region europe-west1
+```
+
+`$PROJECT_ID` and `$LOCATION` come from `--project` and `--region`; everything else is derived or hardcoded in the YAML.
+
+### What runs (in order)
+
+1. **Build + push images** (`docker buildx bake --push`) — uses `docker-bake-agentic-apps.hcl`, ships the 3 images to Artifact Registry with registry-cached layers.
+2. **Deploy agent to Vertex AI Agent Engine** —
+   - `uv export --no-dev --no-hashes --no-emit-project -o football_stats_agent/requirements.txt` regenerates the pinned requirements.txt from `pyproject.toml` (single source of truth, extras included).
+   - `uv pip install --system -r football_stats_agent/requirements.txt` makes the `adk` CLI available in the build container.
+   - `adk deploy agent_engine ...` packages and registers the agent.
+3. **Deploy 3 Cloud Run services** (all suffixed `-copilotkit` to avoid clashes with the upstream repo) —
+   - `gcloud projects describe` derives `PROJECT_NUMBER` from `$PROJECT_ID`.
+   - A REST call against `aiplatform.googleapis.com` looks up the freshly-deployed Agent Engine ID by `display_name=football-stats-agent-copilotkit`.
+   - `gcloud run deploy football-stats-api-copilotkit` (ADK REST API).
+   - `gcloud run deploy agent-engine-proxy-copilotkit` with `PROJECT_NUMBER` and `ENGINE_ID` injected as env vars.
+   - `gcloud run deploy football-stats-webapp-copilotkit`, wired to the two backends above via their freshly-resolved `status.url`.
+
+### Prerequisites
+
+- `gcloud auth login` and the right billing project set.
+- The Cloud Build service account (`{PROJECT_NUMBER}@cloudbuild.gserviceaccount.com`) needs roles to:
+  - push to Artifact Registry (`roles/artifactregistry.writer`)
+  - deploy to Cloud Run (`roles/run.admin` + `roles/iam.serviceAccountUser` on the Cloud Run runtime SA)
+  - deploy to Vertex AI Agent Engine (`roles/aiplatform.user`, `roles/storage.objectAdmin` for the staging bucket)
+  - read Agent Registry / call MCP (`roles/agentregistry.viewer`, `roles/mcp.toolUser`)
+- The APIs enabled: `cloudbuild.googleapis.com`, `run.googleapis.com`, `aiplatform.googleapis.com`, `agentregistry.googleapis.com`, `artifactregistry.googleapis.com`, `bigquery.googleapis.com`.
+- `.gcloudignore` filters the source upload — keep it in sync if you add new directories that should not be shipped.
+
+### Iterate fast
+
+If only the agent code changed and you don't want to wait for the image build, use `./deploy_agent_engine.sh` locally — it skips Cloud Build and runs `adk deploy agent_engine` directly with the same `uv export` pattern.
 
 ## Configuration
 

@@ -1,0 +1,49 @@
+# Golden dataset for the football stats agent.
+#
+# Each case is (question, expected). The `expect.type` selects which
+# assertion is applied — see golden_dataset/runner.py for the available
+# types.
+#
+# Tip: the expected values below were captured from one good run against
+# the Qatar 2022 dataset. If you change the system instruction or the
+# data, rerun the agent manually, pin the new ground truth here, and
+# commit. The dataset is a contract — it should evolve deliberately.
+
+- id: factual_france_fifa_ranking
+  question: "What is the FIFA ranking of France in the dataset?"
+  expect:
+    type: contains_number
+    value: 3
+
+- id: top3_france_scorers_ranking
+  question: "Who are the top 3 scorers for France?"
+  expect:
+    type: ordered_list
+    values:
+      - Kylian Mbappe
+      - Olivier Giroud
+      - Aurelien Tchouameni
+
+- id: bar_chart_top5_france
+  question: "Top 5 scorers of France"
+  expect:
+    type: chart_spec
+    chart_type: bar
+    min_data_points: 5
+    max_data_points: 5
+
+- id: pie_chart_positions_distribution
+  question: "Give me a pie chart of the position distribution (GK / DF / MF / FW) for the France national team"
+  expect:
+    type: chart_spec
+    chart_type: pie
+    min_data_points: 4
+    max_data_points: 4
+
+- id: no_chart_for_single_value
+  question: "What position does Hugo Lloris play?"
+  expect:
+    type: no_chart
+    must_contain:
+      - "Goalkeeper"
+      - "GK"

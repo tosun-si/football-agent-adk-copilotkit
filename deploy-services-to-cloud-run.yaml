@@ -11,12 +11,21 @@ steps:
 
   - name: 'ghcr.io/astral-sh/uv:python3.11-alpine'
     script: |
-      uv pip install --system google-adk
+      # pyproject.toml is the single source of truth.
+      # `uv export` generates a fully-pinned requirements.txt that:
+      #   1. The deployed agent on Agent Engine uses (Google reads it
+      #      from the staged code and installs it in its runtime).
+      #   2. We also install in the Cloud Build container itself so the
+      #      `adk` CLI is available with the right extras to run
+      #      `adk deploy`.
+      uv export --no-dev --no-hashes --no-emit-project -o football_stats_agent/requirements.txt
+      uv pip install --system -r football_stats_agent/requirements.txt
+
       adk deploy agent_engine \
         --project "${PROJECT_ID}" \
         --region "${LOCATION}" \
-        --display_name "football-stats-agent" \
-        --description "Football stats agent using ADK and BigQuery MCP via Cloud API Registry" \
+        --display_name "football-stats-agent-copilotkit" \
+        --description "Football stats agent using ADK and BigQuery MCP via Agent Registry" \
         football_stats_agent
     env:
       - 'PROJECT_ID=${PROJECT_ID}'
@@ -26,16 +35,20 @@ steps:
     script: |
       REGISTRY="${LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
+      echo "--- Retrieving project number ---"
+      PROJECT_NUMBER=$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
+      echo "--- Using Project Number: ${PROJECT_NUMBER} ---"
+
       echo "--- Retrieving latest Agent Engine ID ---"
       ENGINE_ID=$(curl -s \
         -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-        "https://${LOCATION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${LOCATION}/reasoningEngines?filter=display_name=%22football-stats-agent%22&pageSize=100" \
+        "https://${LOCATION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${LOCATION}/reasoningEngines?filter=display_name=%22football-stats-agent-copilotkit%22&pageSize=100" \
         | grep 'reasoningEngines/' | head -1 | grep -o 'reasoningEngines/[0-9]*' | cut -d'/' -f2)
       echo "--- Using Agent Engine ID: ${ENGINE_ID} ---"
 
       echo "--- Deploying ADK Agent API ---"
-      gcloud run deploy football-stats-api \
-        --image=${REGISTRY}/football-stats-api:latest \
+      gcloud run deploy football-stats-api-copilotkit \
+        --image=${REGISTRY}/football-stats-api-copilotkit:latest \
         --region=${LOCATION} \
         --platform=managed \
         --allow-unauthenticated \
@@ -48,22 +61,23 @@ steps:
         --set-env-vars=PYTHONUNBUFFERED=1
 
       echo "--- Deploying Agent Engine Proxy ---"
-      gcloud run deploy agent-engine-proxy \
-        --image=${REGISTRY}/agent-engine-proxy:latest \
+      gcloud run deploy agent-engine-proxy-copilotkit \
+        --image=${REGISTRY}/agent-engine-proxy-copilotkit:latest \
         --region=${LOCATION} \
         --platform=managed \
         --allow-unauthenticated \
         --port=8080 \
         --set-env-vars=GCP_PROJECT_ID=${PROJECT_ID} \
+        --set-env-vars=PROJECT_NUMBER=${PROJECT_NUMBER} \
         --set-env-vars=LOCATION=${LOCATION} \
         --set-env-vars=ENGINE_ID=${ENGINE_ID}
 
       echo "--- Deploying Webapp ---"
-      ADK_API_URL=$(gcloud run services describe football-stats-api --region=${LOCATION} --format='value(status.url)')
-      PROXY_URL=$(gcloud run services describe agent-engine-proxy --region=${LOCATION} --format='value(status.url)')
+      ADK_API_URL=$(gcloud run services describe football-stats-api-copilotkit --region=${LOCATION} --format='value(status.url)')
+      PROXY_URL=$(gcloud run services describe agent-engine-proxy-copilotkit --region=${LOCATION} --format='value(status.url)')
 
-      gcloud run deploy football-stats-webapp \
-        --image=${REGISTRY}/football-stats-webapp:latest \
+      gcloud run deploy football-stats-webapp-copilotkit \
+        --image=${REGISTRY}/football-stats-webapp-copilotkit:latest \
         --region=${LOCATION} \
         --platform=managed \
         --allow-unauthenticated \

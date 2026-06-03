@@ -1,14 +1,17 @@
 [project]
 name = "football-agent-adk-antigravity"
 version = "0.1.0"
-description = "Football statistics agent using Google ADK with BigQuery MCP via Cloud API Registry"
+description = "Football statistics agent using Google ADK with BigQuery MCP via Agent Registry"
 requires-python = ">=3.11"
 dependencies = [
-    "google-adk>=1.27.2",
-    "google-cloud-aiplatform>=1.141.0",
+    "google-adk[agent-identity, mcp, a2a]>=2.1.0",
+    "google-cloud-aiplatform>=1.154.0",
 ]
 
 [dependency-groups]
 dev = [
     "python-pptx>=1.0.2",
+    "pyyaml>=6.0",
+    "pytest>=8.0",
+    "pytest-rerunfailures>=14.0",
 ]

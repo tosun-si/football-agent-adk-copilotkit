@@ -1,11 +1,22 @@
 #!/bin/bash
+set -euo pipefail
 
 # Configuration
 PROJECT_ID="${GCP_PROJECT_ID:-gb-poc-373711}"
 REGION="${LOCATION:-europe-west1}"
-DISPLAY_NAME="football-stats-agent"
-DESCRIPTION="Football stats agent using ADK and BigQuery MCP via Cloud API Registry"
+DISPLAY_NAME="football-stats-agent-copilotkit"
+DESCRIPTION="Football stats agent using ADK and BigQuery MCP via Agent Registry"
 AGENT_DIR="football_stats_agent"
+REQUIREMENTS_FILE="${AGENT_DIR}/requirements.txt"
+
+# Generate requirements.txt from pyproject.toml so adk deploy ships
+# the exact versions we use locally (extras included). Without this,
+# `adk deploy` derives a stripped-down requirements.txt from imports
+# and drops the extras → import errors at runtime on Agent Engine.
+trap 'rm -f "${REQUIREMENTS_FILE}"' EXIT
+
+echo "--- Generating ${REQUIREMENTS_FILE} from pyproject.toml ---"
+uv export --no-dev --no-hashes --no-emit-project -o "${REQUIREMENTS_FILE}"
 
 echo "--- Deploying to Vertex AI Agent Engine ---"
 echo "Project: ${PROJECT_ID}"
