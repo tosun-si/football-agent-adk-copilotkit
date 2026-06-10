@@ -32,4 +32,4 @@ ENV PATH="${APP_DIR}/.venv/bin:$PATH"
 USER appuser
 
 ENTRYPOINT ["adk"]
-CMD ["api_server", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["api_server", "--host", "0.0.0.0", "--port", "8080", "--trace_to_cloud"]

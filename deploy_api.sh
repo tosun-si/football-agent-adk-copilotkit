@@ -24,7 +24,7 @@ gcloud run deploy "${SERVICE_NAME}" \
     --platform managed \
     --region "${REGION}" \
     --allow-unauthenticated \
-    --set-env-vars "GCP_PROJECT_ID=${PROJECT_ID},LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=True,BIGQUERY_DATASET=qatar_fifa_world_cup,BIGQUERY_TABLE=team_players_stat_raw,PYTHONUNBUFFERED=1" \
+    --set-env-vars "GCP_PROJECT_ID=${PROJECT_ID},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=True,BIGQUERY_DATASET=qatar_fifa_world_cup,BIGQUERY_TABLE=team_players_stat_raw,PYTHONUNBUFFERED=1" \
     --project "${PROJECT_ID}"
 
 echo "--- Deployment Complete ---"

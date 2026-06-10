@@ -29,6 +29,8 @@ webapp/.dockerignore
 .envrc
 .env
 .env.local
+# Exception: the agent's runtime env file is bundled by `adk deploy --env_file`
+!football_stats_agent/.env
 
 # Node (webapp deps are installed inside Docker)
 webapp/node_modules/

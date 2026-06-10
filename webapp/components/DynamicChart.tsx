@@ -22,7 +22,12 @@ export interface ChartSpec {
   chart_type: ChartType;
   title?: string;
   x_key?: string;
+  // Mono-series (legacy): one y axis.
   y_key?: string;
+  // Multi-series (new): multiple side-by-side bars/lines per x entry.
+  y_keys?: string[];
+  // Optional human-readable label for each y key (legend), e.g. {"goals": "Buts"}.
+  y_labels?: Record<string, string>;
   data: Array<Record<string, string | number>>;
 }
 
@@ -62,7 +67,14 @@ export function DynamicChart({ spec }: { spec: ChartSpec }) {
 
   const sample = spec.data[0] as Record<string, unknown>;
   const xKey = resolveKey(spec.x_key, ["name", "label", "category"], sample);
-  const yKey = resolveKey(spec.y_key, ["value", "count", "total"], sample);
+
+  // Resolve series: prefer y_keys (multi), fall back to y_key (mono).
+  const seriesKeys: string[] =
+    spec.y_keys && spec.y_keys.length > 0
+      ? spec.y_keys.filter((k) => k in sample)
+      : [resolveKey(spec.y_key, ["value", "count", "total"], sample)];
+  const isMultiSeries = seriesKeys.length > 1;
+  const labelFor = (k: string) => spec.y_labels?.[k] ?? k;
 
   return (
     <div className="my-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -79,13 +91,18 @@ export function DynamicChart({ spec }: { spec: ChartSpec }) {
               <XAxis dataKey={xKey} fontSize={12} />
               <YAxis fontSize={12} />
               <Tooltip />
-              <Line
-                type="monotone"
-                dataKey={yKey}
-                stroke={PALETTE[0]}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-              />
+              {isMultiSeries && <Legend />}
+              {seriesKeys.map((k, i) => (
+                <Line
+                  key={k}
+                  type="monotone"
+                  dataKey={k}
+                  name={labelFor(k)}
+                  stroke={PALETTE[i % PALETTE.length]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              ))}
             </LineChart>
           ) : spec.chart_type === "pie" ? (
             <PieChart>
@@ -93,7 +110,7 @@ export function DynamicChart({ spec }: { spec: ChartSpec }) {
               <Legend />
               <Pie
                 data={spec.data}
-                dataKey={yKey}
+                dataKey={seriesKeys[0]}
                 nameKey={xKey}
                 outerRadius={80}
                 label={(entry) => `${entry[xKey]}`}
@@ -116,11 +133,20 @@ export function DynamicChart({ spec }: { spec: ChartSpec }) {
               />
               <YAxis fontSize={12} />
               <Tooltip />
-              <Bar dataKey={yKey} fill={PALETTE[0]}>
-                {spec.data.map((_, i) => (
-                  <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                ))}
-              </Bar>
+              {isMultiSeries && <Legend />}
+              {seriesKeys.map((k, i) => (
+                <Bar
+                  key={k}
+                  dataKey={k}
+                  name={labelFor(k)}
+                  fill={PALETTE[i % PALETTE.length]}
+                >
+                  {!isMultiSeries &&
+                    spec.data.map((_, j) => (
+                      <Cell key={j} fill={PALETTE[j % PALETTE.length]} />
+                    ))}
+                </Bar>
+              ))}
             </BarChart>
           )}
         </ResponsiveContainer>

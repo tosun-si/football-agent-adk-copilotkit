@@ -28,6 +28,7 @@ uv run adk deploy agent_engine \
     --region "${REGION}" \
     --display_name "${DISPLAY_NAME}" \
     --description "${DESCRIPTION}" \
+    --env_file "${AGENT_DIR}/.env" \
     "${AGENT_DIR}"
 
 echo "--- Done ---"

@@ -47,7 +47,15 @@ The legacy `roles/cloudapiregistry.viewer` does NOT grant access to Agent Regist
 ### Setup notes
 
 - The `agentregistry.googleapis.com` API must be enabled in the project.
-- Python dependencies use the ADK extras pattern: `google-adk[agent-identity, mcp, a2a]>=2.1.0`. This pulls in the right transitive versions for AgentRegistry (notably `a2a-sdk` at the version ADK was built against). Without the `a2a` extra, importing `AgentRegistry` raises `ModuleNotFoundError: No module named 'a2a'`.
+- Python dependencies use the ADK extras pattern: `google-adk[agent-identity, mcp, a2a, otel-gcp]>=2.1.0` plus a direct dep on `opentelemetry-exporter-gcp-trace>=1.12.0`. The `a2a` extra pulls in the right transitive versions for AgentRegistry (notably `a2a-sdk` at the version ADK was built against); without it, importing `AgentRegistry` raises `ModuleNotFoundError: No module named 'a2a'`. The `otel-gcp` extra auto-instruments Gemini calls. `opentelemetry-exporter-gcp-trace` provides `CloudTraceSpanExporter` used by `adk api_server --trace_to_cloud` on the Cloud Run path; without it the container crashes at startup with `ModuleNotFoundError: No module named 'opentelemetry.exporter'`. We add it directly rather than via `google-adk[gcp]` because that extra pulls in every google-cloud-* library.
+
+## Telemetry / Tracing
+
+Two runtimes, two different gates:
+
+- **Cloud Run path**: `adk api_server --trace_to_cloud` flag in the Dockerfile `CMD`. Requires `GOOGLE_CLOUD_PROJECT` env var (not `GCP_PROJECT_ID` — ADK looks at the former specifically). Set in the `gcloud run deploy ... --set-env-vars`. Without it, ADK logs "GOOGLE_CLOUD_PROJECT environment variable is not set. Tracing will not be enabled" at startup. Runtime SA also needs `roles/cloudtrace.agent` (or any role granting `cloudtrace.spans.create`).
+- **Agent Engine path**: `--trace_to_cloud` flag is a **no-op here** — AE has its own platform-managed telemetry gate via the env var `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true`. This must be set at deploy time and bundled with the agent. We do this via `--env_file football_stats_agent/.env`, which `adk deploy agent_engine` bundles into the agent package. The companion env var `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` adds prompt/response content to spans — fine here because the dataset is public; remove it for any deployment handling PII. `.gcloudignore` has an explicit exception `!football_stats_agent/.env` so Cloud Build uploads the file even though `.env` is otherwise excluded. **Also required**: the dep `opentelemetry-exporter-otlp-proto-http>=1.38.0` must be in `pyproject.toml`. AE's runtime template uses this package to push spans to its managed OTLP endpoint; without it, the import silently fails inside the AE container and the Trace tab stays empty even though `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true` is set.
+- **Where to view traces**: AE traces in Agent Engine console → "Trace" tab. Cloud Run traces in Cloud Trace console (linked from Cloud Run logs via the `trace` field on each log entry — Cloud Run does not have its own Trace tab).
 
 ## Agent change vs. upstream
 

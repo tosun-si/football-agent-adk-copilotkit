@@ -122,6 +122,19 @@ The Qatar 2022 dataset is a snapshot (no time series), so line charts are niche 
 
 For these, the agent answers in plain text without emitting a chart block.
 
+### DevLille demo — 3-prompt sequence
+
+Three prompts in order, designed to ramp up engagement during the live demo:
+
+1. **Opener (safe, instant wow)** — simple mono-series bar chart, the audience instantly recognises the players:
+   > *"Quels sont les 3 meilleurs buteurs de la Coupe du Monde 2022 ?"*
+
+2. **Middle (multi-series, the GOAT debate)** — shows off the multi-series chart (`y_keys`), fuels the eternal Messi vs Mbappé argument:
+   > *"Compare Kylian Mbappé et Lionel Messi sur leurs buts marqués, passes décisives et dribbles par 90 minutes."*
+
+3. **Closer (local twist + punchline)** — DevLille local pride: reveals the two LOSC players who played in Qatar 2022 (Tim Weah and Jonathan David), then benchmarks them against Mbappé. The chart has 3 × 3 = 9 bars, all non-zero:
+   > *"Quels joueurs de Lille ont disputé la Coupe du Monde 2022 ? Compare leurs stats offensives (buts, passes décisives, dribbles par 90) à celles de Mbappé."*
+
 ## With Docker Compose
 
 ```bash

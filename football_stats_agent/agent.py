@@ -3,7 +3,7 @@ from pathlib import Path
 
 from google.adk.agents import LlmAgent
 from google.adk.integrations.agent_registry import AgentRegistry
-from vertexai.preview.reasoning_engines import AdkApp
+from vertexai.agent_engines import AdkApp
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "gb-poc-373711")
 DATASET_LOCATION = os.environ.get("LOCATION", "europe-west1")  # For BigQuery Dataset

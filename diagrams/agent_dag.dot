@@ -1,0 +1,16 @@
+strict digraph {
+	graph [bgcolor="#ffffff" rankdir=LR]
+	football_stats_agent [label="🤖 football_stats_agent" color="#1971c2" fontcolor="#1971c2" shape=ellipse style=rounded]
+	bigquery_googleapis_com_list_dataset_ids [label="🔧 list_dataset_ids" color="#e8590c" fontcolor="#e8590c" shape=box style=rounded]
+	football_stats_agent -> bigquery_googleapis_com_list_dataset_ids [arrowhead=none color="#999"]
+	bigquery_googleapis_com_get_dataset_info [label="🔧 get_dataset_info" color="#e8590c" fontcolor="#e8590c" shape=box style=rounded]
+	football_stats_agent -> bigquery_googleapis_com_get_dataset_info [arrowhead=none color="#999"]
+	bigquery_googleapis_com_list_table_ids [label="🔧 list_table_ids" color="#e8590c" fontcolor="#e8590c" shape=box style=rounded]
+	football_stats_agent -> bigquery_googleapis_com_list_table_ids [arrowhead=none color="#999"]
+	bigquery_googleapis_com_get_table_info [label="🔧 get_table_info" color="#e8590c" fontcolor="#e8590c" shape=box style=rounded]
+	football_stats_agent -> bigquery_googleapis_com_get_table_info [arrowhead=none color="#999"]
+	bigquery_googleapis_com_execute_sql_readonly [label="🔧 execute_sql_readonly" color="#e8590c" fontcolor="#e8590c" shape=box style=rounded]
+	football_stats_agent -> bigquery_googleapis_com_execute_sql_readonly [arrowhead=none color="#999"]
+	bigquery_googleapis_com_execute_sql [label="🔧 execute_sql" color="#e8590c" fontcolor="#e8590c" shape=box style=rounded]
+	football_stats_agent -> bigquery_googleapis_com_execute_sql [arrowhead=none color="#999"]
+}
