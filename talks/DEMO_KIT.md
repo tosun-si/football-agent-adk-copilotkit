@@ -12,7 +12,7 @@ Quick reference for live demos. Open in a split pane or on your phone.
 
 ```bash
 cd ~/my-projects/blogarticles/football-agent-adk-copilotkit
-./panic.sh                   # guaranteed clean slate
+docker compose down -v       # guaranteed clean slate (wipes volumes)
 docker compose up            # starts all 3 services
 ```
 
@@ -42,7 +42,7 @@ docker compose down
 - `adk web` (port 8000) and `adk api_server` (port 8080) run in **isolated** Docker containers → each has its own ephemeral `.adk/session.db`, zero SQLite conflict risk
 - The webapp (port 3000) talks to `adk-agent` over the internal Docker network → not dependent on your localhost
 - No phase transitions = no risk of forgetting a cleanup
-- If something breaks anyway: `./panic.sh` then `docker compose up` — back up in 2 commands
+- If something breaks anyway: `docker compose down -v && docker compose up` — back up in one command
 
 ---
 
@@ -95,13 +95,13 @@ Inside the Docker setup this shouldn't happen (each container has its own epheme
 
 ```bash
 rm -rf football_stats_agent/.adk
-./reset_and_start.sh
+uv run adk api_server --host 0.0.0.0 --port 8080
 ```
 
 ### Everything is broken, I want to start from scratch
 
 ```bash
-./panic.sh                   # kill everything + wipe local state
+docker compose down -v       # kill everything + wipe volumes (sessions, .next cache)
 docker compose up            # restart full stack
 ```
 
@@ -122,7 +122,7 @@ docker compose up            # restart full stack
 lsof -i :8080 -i :3000 -i :8000
 ```
 
-## Recovery scripts
+## Recovery commands (Docker Compose handles everything)
 
-- `./panic.sh` — kills ADK + Next.js + Docker containers + wipes SQLite + wipes `.next/`. Leaves the environment in a zero state. Run `docker compose up` afterward.
-- `./reset_and_start.sh` — wipes local `.adk/` and runs `adk api_server` directly via `uv` (no Docker). Useful only if you want to run ADK outside Docker for some reason; not part of the talk demo path.
+- `docker compose down -v && docker compose up` — kill everything, wipe volumes (SQLite sessions, `.next/` cache), restart the full stack. One-shot, replaces every previous helper script.
+- `scripts/cleanup_old_engines.sh` — unrelated to demo state, but handy for housekeeping: garbage-collects old Reasoning Engine deployments in the GCP project (`--apply` to actually delete).

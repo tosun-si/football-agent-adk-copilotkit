@@ -1,10 +1,10 @@
 """Generate the talk .pptx from slides_content.py.
 
-Usage:
+Usage (from the repo root):
     uv sync
-    uv run python generate_slides.py
+    uv run python talks/generate_slides.py
 
-Output: slides/talk_devlille_gcs.pptx
+Output: talks/slides/talk_devlille_gcs.pptx
 """
 from __future__ import annotations
 

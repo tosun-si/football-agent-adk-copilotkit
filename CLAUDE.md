@@ -143,7 +143,7 @@ The `adk-agent` and `adk-web` services share a single image (`football-stats-adk
 
 ```bash
 uv sync
-uv run adk api_server --host 0.0.0.0 --port 8080   # or: ./reset_and_start.sh
+uv run adk api_server --host 0.0.0.0 --port 8080
 # in another terminal:
 cd webapp && npm install && npm run dev
 ```
@@ -152,11 +152,11 @@ The webapp needs `CLOUD_RUN_API_URL=http://localhost:8080` — already in `.envr
 
 ## Demo helper scripts
 
-For live talks and rehearsals. All at the project root.
+For live talks and rehearsals. Located in `scripts/` (utility, rare use) and at the project root (deploy entrypoints).
 
-- **`./reset_and_start.sh`** — wipes `football_stats_agent/.adk/` (defends against corrupted SQLite session DB after Ctrl+C mid-write) and runs `adk api_server` via uv on `:8080`. **Not part of the Docker flow** — use it if you're running ADK directly with uv. Env vars are inherited from `.envrc` (direnv).
-- **`./panic.sh`** — the panic button: stops Docker Compose, kills stray `adk` / `uvicorn` / `next dev` processes, frees demo ports, wipes `.adk/` and `webapp/.next/`. Use when the state is wedged and you need a clean slate.
-- **`DEMO_KIT.md`** — symptom-based recovery commands + the 5-phase demo flow for DevLille / GCS France. Designed to be readable on a phone in 5 seconds during a live talk.
+- **`docker compose down -v && docker compose up`** — the clean-slate recipe before a rehearsal or going on stage. `-v` wipes volumes so any stale SQLite session DB is gone, which avoids `ADK error 500: Internal Server Error` if ADK was killed mid-write previously.
+- **`scripts/cleanup_old_engines.sh`** — utility to garbage-collect old Reasoning Engine deployments in the project. Dry-run by default; pass `--apply` to actually delete. Keeps the latest engine per `displayName`.
+- **`talks/DEMO_KIT.md`** — symptom-based recovery commands + the 5-phase demo flow for DevLille / GCS France. Designed to be readable on a phone in 5 seconds during a live talk.
 
 ## Golden dataset (regression tests for the agent)
 
@@ -172,7 +172,7 @@ golden_dataset/
 
 ### Two entry points, same dataset and assertions
 
-1. **Standalone script** — `uv run python -m golden_dataset.runner`. You start the agent yourself (`docker compose up` or `./reset_and_start.sh`). Exit 0/1 for CI.
+1. **Standalone script** — `uv run python -m golden_dataset.runner`. You start the agent yourself (`docker compose up`). Exit 0/1 for CI.
 2. **Pytest** — `uv run pytest tests/test_golden.py -v`. The session-scoped fixture in `tests/conftest.py` auto-detects whether something is already serving on 8080; if not, it runs `docker compose up -d adk-agent`, waits for readiness, runs the tests, then `docker compose down`. If the agent is already running, the fixture reuses it and does NOT touch your stack (principle of least surprise). LLM flakiness is absorbed by `@pytest.mark.flaky(reruns=2, reruns_delay=3)`.
 
 Override target with `ADK_URL=https://prod-cloud-run-url ...` — with a remote URL the pytest fixture stays out of Docker.
@@ -282,4 +282,4 @@ For BigQuery schema, IAM, business rules → upstream `football-agent-adk/CLAUDE
 | 4 | `https://football-stats-webapp-…run.app` | Production Cloud Run |
 | 5 | `console.cloud.google.com/vertex-ai/agents/agent-engines` | Agent Engine playground |
 
-Single command to start everything: `docker compose up`. Zero transitions between phases. See `DEMO_KIT.md` for full details.
+Single command to start everything: `docker compose up`. Zero transitions between phases. See `talks/DEMO_KIT.md` for full details.

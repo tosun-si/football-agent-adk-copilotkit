@@ -2,7 +2,7 @@
 
 Prerequisites:
     The agent must be reachable at $ADK_URL (default: http://localhost:8080).
-    Either run `./reset_and_start.sh` or `docker compose up` before running this.
+    Run `docker compose up` before running this.
 
 Usage:
     uv run python -m golden_dataset.runner

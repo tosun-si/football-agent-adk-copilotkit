@@ -10,7 +10,7 @@ Minimal, zero pytest dependency. Best for CI scripts and ad-hoc runs.
 
 ```bash
 # Start the agent first (it must already be reachable)
-./reset_and_start.sh         # or: docker compose up
+docker compose up
 
 # Run the dataset
 uv run python -m golden_dataset.runner

@@ -76,8 +76,7 @@ The legacy `roles/cloudapiregistry.viewer` does NOT grant access to Agent Regist
 ```bash
 # 1. Install Python deps + start ADK agent
 uv sync
-./reset_and_start.sh        # wipes local session DB then starts adk api_server
-# or, plain:  uv run adk api_server --host 0.0.0.0 --port 8080
+uv run adk api_server --host 0.0.0.0 --port 8080
 
 # 2. In another terminal, install JS deps + start the webapp
 cd webapp
@@ -85,7 +84,7 @@ npm install
 npm run dev
 ```
 
-> **Demo tip** — use `./reset_and_start.sh` before each rehearsal and right before going on stage. It wipes the local SQLite session store, which prevents `ADK error 500: Internal Server Error` if ADK was previously killed mid-write.
+> **Demo tip** — for a clean slate between rehearsals, prefer `docker compose down -v && docker compose up`. The `-v` flag wipes volumes, which clears any stale local SQLite session store and avoids `ADK error 500: Internal Server Error` when ADK was previously killed mid-write.
 
 Open `http://localhost:3000` and try one of the examples below.
 
