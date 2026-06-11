@@ -47,14 +47,53 @@ The legacy `roles/cloudapiregistry.viewer` does NOT grant access to Agent Regist
 ### Setup notes
 
 - The `agentregistry.googleapis.com` API must be enabled in the project.
-- Python dependencies use the ADK extras pattern: `google-adk[agent-identity, mcp, a2a, otel-gcp]>=2.1.0` plus a direct dep on `opentelemetry-exporter-gcp-trace>=1.12.0`. The `a2a` extra pulls in the right transitive versions for AgentRegistry (notably `a2a-sdk` at the version ADK was built against); without it, importing `AgentRegistry` raises `ModuleNotFoundError: No module named 'a2a'`. The `otel-gcp` extra auto-instruments Gemini calls. `opentelemetry-exporter-gcp-trace` provides `CloudTraceSpanExporter` used by `adk api_server --trace_to_cloud` on the Cloud Run path; without it the container crashes at startup with `ModuleNotFoundError: No module named 'opentelemetry.exporter'`. We add it directly rather than via `google-adk[gcp]` because that extra pulls in every google-cloud-* library.
+- Python dependencies use the ADK extras pattern: `google-adk[agent-identity, mcp, a2a, otel-gcp]>=2.1.0` plus a direct dep on `opentelemetry-exporter-gcp-trace>=1.12.0`. They are declared in `football_stats_agent/pyproject.toml` (the agent workspace member), not at the repo root. The `a2a` extra pulls in the right transitive versions for AgentRegistry (notably `a2a-sdk` at the version ADK was built against); without it, importing `AgentRegistry` raises `ModuleNotFoundError: No module named 'a2a'`. The `otel-gcp` extra auto-instruments Gemini calls. `opentelemetry-exporter-gcp-trace` provides `CloudTraceSpanExporter` used by `adk api_server --trace_to_cloud` on the Cloud Run path; without it the container crashes at startup with `ModuleNotFoundError: No module named 'opentelemetry.exporter'`. We add it directly rather than via `google-adk[gcp]` because that extra pulls in every google-cloud-* library.
+
+### uv workspace layout
+
+The Python side of the repo is a uv workspace with two members and a virtual root:
+
+```
+.
+├── pyproject.toml                    # virtual workspace root: [tool.uv.workspace] + dev deps
+├── uv.lock                            # shared lockfile resolved across all members
+├── football_stats_agent/
+│   ├── pyproject.toml                # member — ADK + Vertex AI + OTel exporters
+│   ├── Dockerfile                    # Cloud Run image (build context = repo root)
+│   └── ...                            # agent.py, prompts/, .env
+└── agent_engine_proxy/
+    ├── pyproject.toml                # member — FastAPI + google-cloud-aiplatform
+    ├── Dockerfile                    # Cloud Run image (build context = repo root)
+    └── main.py
+```
+
+Both members are marked `[tool.uv] package = false` because they are loaded directly from disk at runtime (ADK discovers the agent folder; uvicorn loads `main.py` from cwd) — neither needs to be installed as a wheel into site-packages.
+
+Local dev workflow:
+
+```bash
+uv sync                # at repo root — installs every member + dev tooling into .venv/
+uv run adk api_server --host 0.0.0.0 --port 8080   # uses .venv from root, finds the agent member
+```
+
+Per-member operations use the `--package` flag:
+
+```bash
+uv sync --package football-stats-agent --no-dev    # install only that member's deps
+uv export --package football-stats-agent --no-dev --no-hashes --no-emit-project -o req.txt
+```
+
+This is what `deploy_agent_engine.sh` and the Cloud Build pipeline use to produce a scoped `requirements.txt` for `adk deploy agent_engine`.
+
+Docker builds use **per-Dockerfile `.dockerignore`** files (`football_stats_agent/Dockerfile.dockerignore`, `agent_engine_proxy/Dockerfile.dockerignore`) so each member's build context excludes the other member. BuildKit picks up `<dockerfile>.dockerignore` automatically when building with `-f <member>/Dockerfile`.
 
 ## Telemetry / Tracing
 
 Two runtimes, two different gates:
 
 - **Cloud Run path**: `adk api_server --trace_to_cloud` flag in the Dockerfile `CMD`. Requires `GOOGLE_CLOUD_PROJECT` env var (not `GCP_PROJECT_ID` — ADK looks at the former specifically). Set in the `gcloud run deploy ... --set-env-vars`. Without it, ADK logs "GOOGLE_CLOUD_PROJECT environment variable is not set. Tracing will not be enabled" at startup. Runtime SA also needs `roles/cloudtrace.agent` (or any role granting `cloudtrace.spans.create`).
-- **Agent Engine path**: `--trace_to_cloud` flag is a **no-op here** — AE has its own platform-managed telemetry gate via the env var `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true`. This must be set at deploy time and bundled with the agent. We do this via `--env_file football_stats_agent/.env`, which `adk deploy agent_engine` bundles into the agent package. The companion env var `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` adds prompt/response content to spans — fine here because the dataset is public; remove it for any deployment handling PII. `.gcloudignore` has an explicit exception `!football_stats_agent/.env` so Cloud Build uploads the file even though `.env` is otherwise excluded. **Also required**: the dep `opentelemetry-exporter-otlp-proto-http>=1.38.0` must be in `pyproject.toml`. AE's runtime template uses this package to push spans to its managed OTLP endpoint; without it, the import silently fails inside the AE container and the Trace tab stays empty even though `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true` is set.
+- **Agent Engine path**: `--trace_to_cloud` flag is a **no-op here** — AE has its own platform-managed telemetry gate via the env var `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true`. This must be set at deploy time and bundled with the agent. We rely on `adk deploy agent_engine`'s **auto-discovery of `.env`** inside the agent folder (the explicit `--env_file` flag was deprecated in ADK 2.2). The companion env var `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` adds prompt/response content to spans — fine here because the dataset is public; remove it for any deployment handling PII. `.gcloudignore` has an explicit exception `!football_stats_agent/.env` so Cloud Build uploads the file even though `.env` is otherwise excluded. **Also required**: the dep `opentelemetry-exporter-otlp-proto-http>=1.38.0` must be in `pyproject.toml`. AE's runtime template uses this package to push spans to its managed OTLP endpoint; without it, the import silently fails inside the AE container and the Trace tab stays empty even though `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true` is set.
+- **ADK 2.2 deploy gotcha — pass an ABSOLUTE path**: `adk deploy agent_engine` runs `os.chdir(os.path.dirname(agent_folder))` internally. When the agent folder is passed as a relative path (e.g. `football_stats_agent`), `os.path.dirname` returns `""` and the `chdir("")` silently corrupts the working directory; the subsequent `os.path.exists("football_stats_agent/.env")` check returns False and the `.env` is never read, so AE deploys without any of our env vars (only the default `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=unspecified`). Both `deploy_agent_engine.sh` and the Cloud Build YAML now pass `"$(pwd)/football_stats_agent"`. If you ever see `env_vars` come back empty on a freshly deployed engine, this is the first thing to check.
 - **Where to view traces**: AE traces in Agent Engine console → "Trace" tab. Cloud Run traces in Cloud Trace console (linked from Cloud Run logs via the `trace` field on each log entry — Cloud Run does not have its own Trace tab).
 
 ## Agent change vs. upstream
@@ -198,14 +237,15 @@ Images here are suffixed `-copilotkit` to avoid clashing with the upstream `foot
 
 - `football-stats-api-copilotkit:latest`
 - `football-stats-webapp-copilotkit:latest`
+- `agent-engine-proxy-copilotkit:latest`
 
-Deploy scripts (`deploy_api.sh`, `deploy-services-to-cloud-run.yaml`) inherited from upstream still reference the old names — update before deploying.
+All three are deployed end-to-end by `deploy-services-to-cloud-run.yaml`. The local single-service Cloud Run scripts (`deploy_api.sh`, `agent_engine_proxy/deploy.sh`) were removed: Cloud Build is the canonical path; only `deploy_agent_engine.sh` remains at the root for fast prompt-only iterations on the Agent Engine.
 
 ## Agent Engine deployment
 
 Validated. Deploy via `./deploy_agent_engine.sh` (or the Cloud Build pipeline). The script + CI step share the same pattern:
 
-1. **`uv export --no-dev --no-hashes --no-emit-project -o football_stats_agent/requirements.txt`** — regenerates the requirements.txt from `pyproject.toml` (single source of truth). Without this, `adk deploy` auto-derives a requirements.txt from imports and **drops the extras** (`[agent-identity, mcp, a2a]`), which makes the container fail to start with `ImportError: Missing required dependencies for Agent Identity Auth Manager` or `No module named 'a2a'`.
+1. **`uv export --no-dev --no-hashes --no-emit-project --package football-stats-agent -o football_stats_agent/requirements.txt`** — regenerates the requirements.txt from the agent member's pyproject (single source of truth). `--package football-stats-agent` scopes the resolution to that workspace member; without it the export would include the proxy's deps as well. Without the export step entirely, `adk deploy` auto-derives a requirements.txt from imports and **drops the extras** (`[agent-identity, mcp, a2a]`), which makes the container fail to start with `ImportError: Missing required dependencies for Agent Identity Auth Manager` or `No module named 'a2a'`.
 2. **`uv pip install --system -r football_stats_agent/requirements.txt`** (CI only) — installs the ADK CLI in the build container.
 3. **`adk deploy agent_engine ...`** — packages the agent, ships the staged dir + requirements.txt, Google rebuilds the runtime from scratch.
 4. **trap cleanup** (local script only) — `football_stats_agent/requirements.txt` is regenerated each time and gitignored.

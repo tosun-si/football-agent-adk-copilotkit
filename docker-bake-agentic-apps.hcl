@@ -23,15 +23,15 @@ group "default" {
 
 target "adk-agent" {
   context    = "."
-  dockerfile = "Dockerfile"
+  dockerfile = "football_stats_agent/Dockerfile"
   tags = ["${REGISTRY}/football-stats-api-copilotkit:latest"]
   cache-from = ["type=registry,ref=${REGISTRY}/football-stats-api-copilotkit:cache"]
   cache-to = ["type=registry,ref=${REGISTRY}/football-stats-api-copilotkit:cache,mode=max"]
 }
 
 target "agent-engine-proxy" {
-  context    = "./agent_engine_proxy"
-  dockerfile = "Dockerfile"
+  context    = "."
+  dockerfile = "agent_engine_proxy/Dockerfile"
   tags = ["${REGISTRY}/agent-engine-proxy-copilotkit:latest"]
   cache-from = ["type=registry,ref=${REGISTRY}/agent-engine-proxy-copilotkit:cache"]
   cache-to = ["type=registry,ref=${REGISTRY}/agent-engine-proxy-copilotkit:cache,mode=max"]

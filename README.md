@@ -247,9 +247,9 @@ This is a known risk during dev when ADK is killed mid-write. The `.adk/` direct
 ## Status
 
 - ✅ Local dev works end-to-end (Copilot Kit ↔ ADK ↔ BigQuery)
-- ✅ Bar / line / pie chart rendering via Recharts
-- ⚠️ Cloud Run deployment of the webapp untested with new deps — should work but `deploy_api.sh` etc. reference the upstream image names; rename to `-copilotkit` before pushing
-- ⚠️ Agent Engine deployment not validated for this variant
+- ✅ Bar / line / pie chart rendering via Recharts (mono + multi-series)
+- ✅ Cloud Run deployment of all three services via `deploy-services-to-cloud-run.yaml`
+- ✅ Agent Engine deployment via `deploy_agent_engine.sh` and as part of the Cloud Build pipeline
 
 ## See also
 

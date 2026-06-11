@@ -1,3 +1,6 @@
+# Default fallback. Each member also has its own
+# `<member>/Dockerfile.dockerignore` which takes precedence when
+# BuildKit builds with `-f <member>/Dockerfile`.
 .venv
 diagrams
 __pycache__
@@ -6,5 +9,4 @@ __pycache__
 .DS_Store
 .envrc
 webapp/
-agent_engine_proxy/
 *.md

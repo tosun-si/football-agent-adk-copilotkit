@@ -1,14 +1,9 @@
-[project]
-name = "football-agent-adk-antigravity"
-version = "0.1.0"
-description = "Football statistics agent using Google ADK with BigQuery MCP via Agent Registry"
-requires-python = ">=3.11"
-dependencies = [
-    "google-adk[agent-identity, mcp, a2a, otel-gcp]>=2.1.0",
-    "google-cloud-aiplatform>=1.154.0",
-    "opentelemetry-exporter-gcp-trace>=1.12.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.38.0",
-]
+# Virtual workspace root: no [project] section, just orchestrates the
+# Python members below and holds repo-wide dev tooling. Each member
+# has its own pyproject.toml with its runtime dependencies.
+
+[tool.uv.workspace]
+members = ["football_stats_agent", "agent_engine_proxy"]
 
 [dependency-groups]
 dev = [

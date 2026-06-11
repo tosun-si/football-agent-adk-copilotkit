@@ -11,23 +11,32 @@ steps:
 
   - name: 'ghcr.io/astral-sh/uv:python3.11-alpine'
     script: |
-      # pyproject.toml is the single source of truth.
-      # `uv export` generates a fully-pinned requirements.txt that:
-      #   1. The deployed agent on Agent Engine uses (Google reads it
-      #      from the staged code and installs it in its runtime).
-      #   2. We also install in the Cloud Build container itself so the
-      #      `adk` CLI is available with the right extras to run
+      # The football_stats_agent pyproject.toml + the workspace lockfile
+      # are the single source of truth. `uv export --package
+      # football-stats-agent` scopes the resolution to that workspace
+      # member only (drops dev tooling, drops deps from agent_engine_proxy).
+      #   1. The deployed agent on Agent Engine uses the generated
+      #      requirements.txt (Google reads it from the staged code and
+      #      installs it in its runtime).
+      #   2. We also install it in the Cloud Build container itself so
+      #      the `adk` CLI is available with the right extras to run
       #      `adk deploy`.
-      uv export --no-dev --no-hashes --no-emit-project -o football_stats_agent/requirements.txt
+      uv export --no-dev --no-hashes --no-emit-project --package football-stats-agent -o football_stats_agent/requirements.txt
       uv pip install --system -r football_stats_agent/requirements.txt
 
+      # NOTE: pass the agent dir as an ABSOLUTE path. ADK 2.2's
+      # `adk deploy agent_engine` does `os.chdir(os.path.dirname(agent_folder))`
+      # internally; when the path is relative, `parent_folder` is "" and the
+      # chdir silently breaks the cwd, after which `os.path.exists("<dir>/.env")`
+      # fails and the auto-discovered .env (with our telemetry env vars) is
+      # skipped. The deprecated `--env_file` does not help — it's affected by
+      # the same cwd issue.
       adk deploy agent_engine \
         --project "${PROJECT_ID}" \
         --region "${LOCATION}" \
         --display_name "football-stats-agent-copilotkit" \
         --description "Football stats agent using ADK and BigQuery MCP via Agent Registry" \
-        --env_file football_stats_agent/.env \
-        football_stats_agent
+        "$(pwd)/football_stats_agent"
     env:
       - 'PROJECT_ID=${PROJECT_ID}'
       - 'LOCATION=${LOCATION}'

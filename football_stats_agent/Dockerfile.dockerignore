@@ -1,0 +1,17 @@
+# Context is the repo root. We only need workspace bootstrap files
+# (root pyproject + lock) + the agent member directory.
+.venv
+diagrams
+__pycache__
+*.pyc
+.git
+.DS_Store
+.envrc
+*.md
+webapp/
+agent_engine_proxy/
+golden_dataset/
+tests/
+talks/
+scripts/
+raw_data/

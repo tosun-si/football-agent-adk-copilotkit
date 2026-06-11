@@ -1,0 +1,17 @@
+# Context is the repo root. We only need workspace bootstrap files
+# (root pyproject + lock) + the proxy member directory.
+.venv
+diagrams
+__pycache__
+*.pyc
+.git
+.DS_Store
+.envrc
+*.md
+webapp/
+football_stats_agent/
+golden_dataset/
+tests/
+talks/
+scripts/
+raw_data/

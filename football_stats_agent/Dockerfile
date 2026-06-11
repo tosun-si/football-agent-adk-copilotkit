@@ -3,16 +3,19 @@ FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 ENV APP_DIR=/usr/local/src/app
 WORKDIR ${APP_DIR}
 
+# Workspace bootstrap: the root pyproject + lockfile + the member's
+# pyproject are needed BEFORE any code so the cache layer survives
+# code changes.
 COPY pyproject.toml uv.lock ./
+COPY football_stats_agent/pyproject.toml football_stats_agent/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-workspace --package football-stats-agent
 
-COPY agent_config.yaml ./
-COPY football_stats_agent/ ./football_stats_agent/
+COPY football_stats_agent/ football_stats_agent/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --package football-stats-agent
 
 FROM python:3.11-slim
 

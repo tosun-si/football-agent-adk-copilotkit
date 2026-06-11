@@ -8,3 +8,7 @@ dependencies = [
     "uvicorn>=0.42.0",
     "google-cloud-aiplatform>=1.154.0",
 ]
+
+# Not built as a wheel: uvicorn loads main.py directly at runtime.
+[tool.uv]
+package = false
